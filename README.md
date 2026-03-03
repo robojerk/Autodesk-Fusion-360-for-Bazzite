@@ -12,7 +12,7 @@ This method automates the Samba shims, the Bazzite-specific patching, and the Au
 Installs to the default path: `~/.local/opt/autodesk_fusion`
 
 ```bash
-curl -sL https://raw.githubusercontent.com/robojerk/Autodesk-Fusion-360-for-Bazzite/main/install.sh | bash
+curl -sL https://raw.githubusercontent.com/robojerk/Autodesk-Fusion-360-for-Bazzite/refs/heads/main/install-fusion.sh | bash
 
 ```
 
@@ -21,7 +21,7 @@ curl -sL https://raw.githubusercontent.com/robojerk/Autodesk-Fusion-360-for-Bazz
 Includes the heavy extension packs and extra components.
 
 ```bash
-curl -sL https://raw.githubusercontent.com/robojerk/Autodesk-Fusion-360-for-Bazzite/main/install.sh | bash -s -- "" --full
+curl -sL https://raw.githubusercontent.com/robojerk/Autodesk-Fusion-360-for-Bazzite/refs/heads/main/install-fusion.sh | bash -s -- "" --full
 
 ```
 
@@ -31,7 +31,7 @@ If you want to install to a specific drive or folder:
 
 ```bash
 # Syntax: bash -s -- "/your/custom/path" [--full]
-curl -sL https://raw.githubusercontent.com/robojerk/Autodesk-Fusion-360-for-Bazzite/main/install.sh | bash -s -- "/home/rob/Games/fusion360" --full
+curl -sL https://raw.githubusercontent.com/robojerk/Autodesk-Fusion-360-for-Bazzite/refs/heads/main/install-fusion.sh | bash -s -- "/home/rob/Games/fusion360" --full
 
 ```
 
