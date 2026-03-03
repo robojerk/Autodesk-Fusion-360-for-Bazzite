@@ -1,131 +1,98 @@
 # Instructions: Install Autodesk Fusion 360 on Bazzite
 
 > [!IMPORTANT]
-> **Browser Warning:** Firefox installed via Flatpak or Snap has significant issues with MIME handoffs. Use a browser installed directly from a distro repo (RPM/Binary) or a local binary extraction.
+> **Browser Warning:** Firefox installed via Flatpak or Snap has major issues with MIME handoffs. Use a browser installed directly from a distro repo (RPM/Binary) or a local binary extraction.
 
-## 1. Prerequisites (Samba Shim)
+## 1. Quick Install (Recommended)
 
-The installer expects a `samba` command. Since Bazzite is immutable and Homebrew's version uses `smbd`, create this shim to pass the dependency check:
+This method automates the Samba shims, the Bazzite-specific patching, and the Authentication Bridge setup.
+
+### A. Standard Installation
+
+Installs to the default path: `~/.local/opt/autodesk_fusion`
 
 ```bash
-mkdir -p ~/.local/bin
-cat > ~/.local/bin/samba << 'EOF'
-#!/bin/bash
-exec smbd "$@" 2>/dev/null || true
-EOF
-chmod +x ~/.local/bin/samba
-export PATH="$HOME/.local/bin:$PATH"
+curl -sL https://raw.githubusercontent.com/robojerk/Autodesk-Fusion-360-for-Bazzite/main/install.sh | bash
 
 ```
 
-## 2. Get and Patch the Installer
+### B. Full Installation (All Extensions)
 
-Download the script and use the Python patcher below to bypass package manager calls and fix `mokutil` detection.
+Includes the heavy extension packs and extra components.
 
 ```bash
-curl -L https://codeberg.org/cryinkfly/Autodesk-Fusion-360-on-Linux/raw/branch/main/files/setup/autodesk_fusion_installer_x86-64.sh -o "autodesk_fusion_installer_x86-64.sh"
-chmod +x autodesk_fusion_installer_x86-64.sh
+curl -sL https://raw.githubusercontent.com/robojerk/Autodesk-Fusion-360-for-Bazzite/main/install.sh | bash -s -- "" --full
 
 ```
 
-### Create `patch_installer.py`
+### C. Custom Path Installation
 
-```python
-#!/usr/bin/env python3
-import re
+If you want to install to a specific drive or folder:
 
-with open("autodesk_fusion_installer_x86-64.sh", "r") as f:
-    content = f.read()
-
-# Fix 1: Add Bazzite to the Fedora/Nobara check
-content = content.replace('$DISTRO_VERSION == *"fedora"* ]] || [[ $DISTRO_VERSION == *"nobara"* ]]; then', 
-                          '$DISTRO_VERSION == *"fedora"* ]] || [[ $DISTRO_VERSION == *"nobara"* ]] || [[ $DISTRO_VERSION == *"bazzite"* ]]; then')
-
-# Fix 2: Add Bazzite to the Wine install check
-content = content.replace('$DISTRO_VERSION == *"Fedora"* && $DISTRO_VERSION == *"43"* ]] || [[ $DISTRO_VERSION == *"Nobara"* ]]; then', 
-                          '$DISTRO_VERSION == *"Fedora"* && $DISTRO_VERSION == *"43"* ]] || [[ $DISTRO_VERSION == *"Nobara"* ]] || [[ $DISTRO_VERSION == *"Bazzite"* ]]; then')
-
-# Fix 3: DISABLE the package check function entirely to prevent dnf/sudo errors
-content = re.sub(r'check_required_packages\(\) \{.*?\n\}', 
-                 'check_required_packages() {\n    return 0\n}', 
-                 content, flags=re.DOTALL)
-
-# Fix 4: Fix mokutil detection (Check for binary existence only)
-content = content.replace('if ! mokutil --list-enrolled &>/dev/null; then', 
-                          'if ! command -v mokutil &>/dev/null; then')
-
-with open("autodesk_fusion_installer_x86-64.sh", "w") as f:
-    f.write(content)
-
-print("Successfully patched installer: Package checks disabled and mokutil fixed.")
+```bash
+# Syntax: bash -s -- "/your/custom/path" [--full]
+curl -sL https://raw.githubusercontent.com/robojerk/Autodesk-Fusion-360-for-Bazzite/main/install.sh | bash -s -- "/home/rob/Games/fusion360" --full
 
 ```
 
-**Run:** `python3 patch_installer.py`
+---
 
-## 3. Run the Installation
+## 2. Authentication (Login)
 
-Pre-create the directory to satisfy the installer's disk space check.
+After the script finishes, launch Fusion 360. When you click **Sign In**:
+
+1. Your browser will open the Autodesk login page.
+2. Log in as usual.
+3. Your browser should ask to open the link with **Autodesk Identity Manager**.
+4. If you are using a local Firefox binary, it should hand off to the bridge script automatically and log you into the app.
+
+**If the handoff fails:**
+Copy the `adskidmgr://` link from your browser's address bar and run:
 
 ```bash
-mkdir -p "$HOME/.local/opt/autodesk_fusion"
-./autodesk_fusion_installer_x86-64.sh --install "$HOME/.local/opt/autodesk_fusion" --full
+~/.local/bin/adskidmgr-handler "PASTE_LINK_HERE"
 
 ```
 
-## 4. Fix Authentication (URI Scheme)
+---
 
-The login callback uses `adskidmgr://`. We use a bridge script to ensure Wine handles the request directly.
+## 3. Launching & Performance Fixes
 
-### Step A: Create the Bridge Script
+To prevent the application from freezing at startup and resolve `DXGI` rendering errors, you must force XWayland and disable specific GPU acceleration for the UI.
 
-Find your specific production hash first: `find "$HOME/.local/opt/autodesk_fusion" -name "AdskIdentityManager.exe"` and update the path below if it differs.
-
-```bash
-cat > ~/.local/bin/adskidmgr-handler << 'EOF'
-#!/bin/bash
-WINEPREFIX="/home/rob/.local/opt/autodesk_fusion/wineprefixes/default" \
-/home/rob/.local/bin/wine \
-"C:\\Program Files\\Autodesk\\webdeploy\\production\\10477bbe50cc169c7bd2cee9059bc7c9d0b71ec0\\Autodesk Identity Manager\\AdskIdentityManager.exe" "$1"
-EOF
-chmod +x ~/.local/bin/adskidmgr-handler
-
-```
-
-### Step B: Register the Desktop Entry
+**Launch Command:**
 
 ```bash
-cat > ~/.local/share/applications/adsk-identity-manager.desktop << EOF
-[Desktop Entry]
-Name=Autodesk Identity Manager
-Exec=/home/rob/.local/bin/adskidmgr-handler %u
-Type=Application
-MimeType=x-scheme-handler/adskidmgr;
-X-KDE-Protocols=adskidmgr
-EOF
-
-xdg-mime default adsk-identity-manager.desktop x-scheme-handler/adskidmgr
-update-desktop-database ~/.local/share/applications/
-
-```
-
-## 5. Launching and Resolving Freezes
-
-To prevent UI freezes and `DXGI` rendering errors, force XWayland and disable hardware acceleration for the UI overlays.
-
-```bash
-# 1. Clear any stuck Wine processes
+# Force cleanup of ghost processes
 wineserver -k
 
-# 2. Disable OctoPrint plugin if it causes CAM product errors
-PLUGIN_DIR="$HOME/.local/opt/autodesk_fusion/wineprefixes/default/drive_c/users/rob/AppData/Roaming/Autodesk/ApplicationPlugins"
-if [ -d "$PLUGIN_DIR/OctoPrint_for_Fusion360.bundle" ]; then
-    mv "$PLUGIN_DIR/OctoPrint_for_Fusion360.bundle" "$PLUGIN_DIR/OctoPrint_for_Fusion360.bundle.bak"
-fi
-
-# 3. Launch with XWayland and GPU UI disabled
+# Launch with Wayland disabled and GPU UI disabled
 env WAYLAND_DISPLAY="" \
 "$HOME/.local/opt/autodesk_fusion/bin/autodesk_fusion_launcher.sh" \
 --disable-gpu --disable-software-rasterizer
+
+```
+
+---
+
+## 4. Troubleshooting
+
+### OctoPrint / CAM Errors
+
+If the app loads but displays a Python Traceback error regarding `failed to find product`, the OctoPrint plugin is likely conflicting with the initialization. The install script attempts to rename this automatically, but you can do it manually:
+
+```bash
+# Replace <INSTALL_DIR> with your actual path
+mv "<INSTALL_DIR>/wineprefixes/default/drive_c/users/$USER/AppData/Roaming/Autodesk/ApplicationPlugins/OctoPrint_for_Fusion360.bundle" \
+   "<INSTALL_DIR>/wineprefixes/default/drive_c/users/$USER/AppData/Roaming/Autodesk/ApplicationPlugins/OctoPrint_for_Fusion360.bundle.bak"
+
+```
+
+### DXVK vs OpenGL
+
+By default, this setup uses the **OpenGL fallback** on Intel/integrated GPUs to ensure stability. If you want to try for higher performance with DXVK, run the toggle script included in the bin folder:
+
+```bash
+"<INSTALL_DIR>/bin/fix-navbar-flicker.sh"
 
 ```
